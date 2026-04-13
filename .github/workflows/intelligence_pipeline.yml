@@ -1,0 +1,29 @@
+name: Intelligence Pipeline
+on:
+  repository_dispatch:
+    types: [new_data_available]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Public Code
+        uses: actions/checkout@v4
+
+      - name: Checkout Private Data
+        uses: actions/checkout@v4
+        with:
+          repository: shreeyakokate/ai-flywheel # Updated with your username
+          token: ${{ secrets.DATA_PULL_TOKEN }}
+          path: raw_data 
+
+      - name: Setup Conda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: ai_trend
+          environment-file: environment.yml
+
+      - name: Run Preprocessing
+        shell: bash -l {0}
+        # Pointing to 'the_refiner' folder and 'raw_data/database'
+        run: python the_refiner/data_preprocess.py --input raw_data/database/
