@@ -2,8 +2,8 @@ name: AI Trend Intelligence Pipeline
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs every midnight
-  workflow_dispatch:      # Allows you to trigger it manually for testing
+    - cron: '0 0 * * *'
+  workflow_dispatch:
 
 jobs:
   run-full-pipeline:
@@ -17,7 +17,7 @@ jobs:
         with:
           repository: shreeyakokate/ai-flywheel
           token: ${{ secrets.DATA_PULL_TOKEN }}
-          path: data_vault  # This clones your private repo into this folder
+          path: data_vault
 
       - name: Setup Conda
         uses: conda-incubator/setup-miniconda@v3
@@ -32,7 +32,8 @@ jobs:
           conda activate ai_trend
           pip install -r requirements.txt
 
-      - name: Step 1: Run Scrapers
+      - name: "Step 1: Run Scrapers"
+        shell: bash -l {0}
         env:
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
           TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
@@ -40,23 +41,20 @@ jobs:
           TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
           BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
           BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
-        shell: bash -l {0}
         run: |
           conda activate ai_trend
-          # Point scrapers to the raw_data folder inside the cloned vault
           python the_scraper/news_scraper.py --output data_vault/database/raw_data/
           python the_scraper/twitter_scraper.py --output data_vault/database/raw_data/
           python the_scraper/reddit_scraper.py --output data_vault/database/raw_data/
           python the_scraper/bluesky_scraper.py --output data_vault/database/raw_data/
 
-      - name: Step 2: Run Preprocessing
+      - name: "Step 2: Run Preprocessing"
         shell: bash -l {0}
         run: |
           conda activate ai_trend
-          # Preprocess from raw_data and save to refined_data
           python the_refiner/data_preprocess.py --input data_vault/database/raw_data/ --output data_vault/database/refined_data/
 
-      - name: Step 3: Push Updated Vault back to Private Repo
+      - name: "Step 3: Push Updated Vault back to Private Repo"
         uses: cpina/github-action-push-to-another-repository@main
         env:
           API_TOKEN_GITHUB: ${{ secrets.DATA_PULL_TOKEN }}
