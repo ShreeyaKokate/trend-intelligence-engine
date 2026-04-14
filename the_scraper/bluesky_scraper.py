@@ -5,6 +5,12 @@ import os
 import time
 import re
 from datetime import datetime, timedelta
+import argparse  
+
+# Setup Arguments to listen to the GitHub Action
+parser = argparse.ArgumentParser()
+parser.add_argument("--output", help="Path to save the database", default=None) # <-- ADDED
+args, unknown = parser.parse_known_args() 
 
 # CREDENTIALS
 HANDLE = os.getenv('BSKY_HANDLE')
@@ -18,17 +24,35 @@ if not HANDLE or not PASSWORD:
 now = datetime.now()
 now_str = now.strftime('%Y-%m-%d %H:%M:%S')
 time_threshold = now - timedelta(hours=24)
-DB_PATH = "database/bluesky_data.db"
 TARGET_UNIQUE_POSTS = 350
 
+# Dynamic DB Path Logic
+if args.output:
+    db_dir = args.output
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    DB_PATH = os.path.join(db_dir, "bluesky_data.db")
+else:
+    # Your original local path fallback
+    DB_PATH = "database/bluesky_data.db"
+    if not os.path.exists('database'): 
+        os.makedirs('database')
+
 print("\n" + "="*40)
-print(f"BLUESKY AI-FLYWHEEL ENGINE (DEEP EXTRACTION): {now_str}")
+print(f"BLUESKY AI-FLYWHEEL ENGINE : {now_str}")
 
 keywords = [
-    "AI", "LLM", "Llama 3", "Mistral", "Ollama", "HuggingFace", 
+    "AI", "Artificial Intelligence", "LLM", "Large Language Model",
+    "Small Language Model", "Transformer", "Deep Learning", "Neural Network",
+    "NLP", "Natural Language Processing", "Computer Vision", "CV",
+    "Generative Models", "Diffusion Models", "AI Ethics", "AI Safety",
+    "Reinforcement Learning", "Supervised Learning", "Unsupervised Learning", "RL",
+    "AI Agents", "AI Inference", "Model Training", "Fine-tuning", "Prompt Engineering",
+    "ChatGPT", "Gemini", "Bard", "GPT-4", "Claude",
+    "Llama 3", "Mistral", "Ollama", "HuggingFace", 
     "Stable Diffusion", "ComfyUI", "Generative AI", "GenAI",
     "Machine Learning", "ML", "RAG", "Local LLM", "Agentic AI", 
-    "OpenAI", "Claude", "PyTorch", "LangChain", "DeepSeek", "NLP"
+    "OpenAI", "PyTorch", "LangChain", "DeepSeek", 
 ]
 keyword_stats = {k: {"found": 0} for k in keywords}
 

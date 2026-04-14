@@ -4,9 +4,16 @@ import time
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from newsapi import NewsApiClient
+import argparse
 
 # Setup environment
 base_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Setup Arguments to listen to the GitHub Action
+parser = argparse.ArgumentParser()
+parser.add_argument("--output", help="Path to save the database", default=None) # <-- ADDED
+args, unknown = parser.parse_known_args()
+
 # Adjusted path to ensure it finds the .env in the root
 env_path = os.path.join(base_dir, '..', '.env')
 load_dotenv(dotenv_path=env_path)
@@ -14,8 +21,15 @@ load_dotenv(dotenv_path=env_path)
 newsapi = NewsApiClient(api_key=os.getenv('NEWSAPI_KEY'))
 
 def get_db_connection():
-    # Ensuring the DB is in the root directory relative to this script
-    db_path = os.path.join(base_dir, '..', 'database/news_articles.db')
+    if args.output:
+        # Use the path passed by GitHub Action and ensure it exists
+        db_dir = args.output
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        db_path = os.path.join(db_dir, 'news_articles.db')
+    else:
+        db_path = os.path.join(base_dir, '..', 'database/news_articles.db')
+
     return sqlite3.connect(db_path)
 
 def init_db():
@@ -47,10 +61,17 @@ def run_perfect_extractor():
     # Bucket Strategy to bypass 100-result limit
     queries = [
         '"Artificial Intelligence" OR "AI"',
-        '"Machine Learning" OR "Deep Learning"',
+        '"Generative AI" OR "GenAI" OR "ChatGPT"',
+        '"Gemini" OR "Claude" OR "Responsible AI"',
+        '"Machine Learning" OR "ML"',
+        '"Reinforcement Learning" OR "RL"',
+        '"Agentic AI" OR "AI Agents"',
         '"LLM" OR "Large Language Models"',
-        '"Neural Networks" OR "Computer Vision" OR "NLP"'
-    ]
+        '"Neural Networks" OR "Deep Learning" OR "Computer Vision"',
+        '"Natural Language Processing" OR "NLP"',
+        '"RAG" OR "AI Inference" OR "Model Training" OR "Fine-tuning" OR "Prompt Engineering"'
+        
+        ]  
     
     conn = get_db_connection()
     cursor = conn.cursor()

@@ -5,11 +5,28 @@ import os
 import json
 from Scweet import Scweet
 from datetime import datetime, timedelta
+import argparse  
+
+# Setup Arguments to listen to the GitHub Action
+parser = argparse.ArgumentParser()
+parser.add_argument("--output", help="Path to save the database", default=None) 
+args, unknown = parser.parse_known_args() 
 
 async def run_ai_flywheel():
 
     COOKIE_PATH = "twitter_setup/cookies.json"
     COOKIE_DIR = "twitter_setup"
+
+    # Dynamic DB Path Logic 
+    if args.output:
+        db_dir = args.output
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+        DB_PATH = os.path.join(db_dir, "twitter_data.db")
+    else:
+        # Your original local path fallback
+        if not os.path.exists('database'): os.makedirs('database')
+        DB_PATH = "database/twitter_data.db"
 
     # PROVISIONING 
     if os.getenv('TWITTER_AUTH_TOKEN'):
@@ -38,7 +55,7 @@ async def run_ai_flywheel():
     print(f"TWITTER SCRAPER: {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
     # SEARCH CALL
-    keywords = ["LLM", "AI", "Artificial Intelligence", "Agentic AI"]
+    keywords = ["LLM", "AI", "Artificial Intelligence", "Agentic AI", "GenAI"]
     query = f"(({' OR '.join(keywords)}) min_faves:100 lang:en)"
     tweets = await s.asearch(
         query,
@@ -91,8 +108,7 @@ async def run_ai_flywheel():
             })
 
         # SAVE
-        if not os.path.exists('database'): os.makedirs('database')
-        conn = sqlite3.connect("database/twitter_data.db")
+        conn = sqlite3.connect(DB_PATH)
         
         conn.execute("""
             CREATE TABLE IF NOT EXISTS tweets (

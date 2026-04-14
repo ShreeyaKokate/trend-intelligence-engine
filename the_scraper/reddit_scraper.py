@@ -4,6 +4,12 @@ import os
 import time
 import re
 from datetime import datetime, timedelta
+import argparse  
+
+# Setup Arguments to listen to the GitHub Action
+parser = argparse.ArgumentParser()
+parser.add_argument("--output", help="Path to save the database", default=None) 
+args, unknown = parser.parse_known_args()
 
 # Targeted high-signal AI subreddits
 SUBREDDITS = [
@@ -11,13 +17,24 @@ SUBREDDITS = [
     "AI_Agents", "ArtificialInteligence",
     "LocalLlama", "singularity",
     "OpenAI", "ChatGPT", "ClaudeAI", "computervision", 
-    "dataisbeautiful",
+    "dataisbeautiful", "VibeCoding", "ClaudeCode", "PromptEngineering",
+    "DeepLearning", "Build_AI_Agents", "AI_Art", "AIAgentsInAction", "AINewsMinute",
 ]
 
-DB_PATH = os.path.join('database', 'reddit_data.db')
+# Dynamic DB Path Logic
+base_dir = os.path.dirname(os.path.abspath(__file__))
+
+if args.output:
+    db_dir = args.output
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+    DB_PATH = os.path.join(db_dir, 'reddit_data.db')
+else:
+    # Your original local path fallback
+    DB_PATH = os.path.join(base_dir, '..', 'database/reddit_data.db')
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 def init_db():
-    os.makedirs('database', exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute('''
