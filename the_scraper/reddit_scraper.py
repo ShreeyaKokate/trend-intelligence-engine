@@ -83,15 +83,23 @@ def scrape_reddit():
     })
     
     for sub in SUBREDDITS:
-        # Fetching Top 100 of the day for max volume/quality
-        url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
-
+        # TRIGGER CHANGE: Using the mobile-gateway URL which is less restricted
+        url = f"https://gateway.reddit.com/reddit/r/{sub}/top?t=day&limit=100"
+        
         try:
-            # Add a small random jitter to the sleep to break the "machine" pattern
+            # We add a random 'X-Forwarded-For' to spoof a different origin
             import random
-            time.sleep(random.uniform(5, 10)) 
+            fake_ip = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
             
-            response = session.get(url, timeout=20)
+            session.headers.update({
+                'X-Forwarded-For': fake_ip,
+                'User-Agent': 'Reddit/6.30.0 (iPhone; iOS 17.4.1; Scale/3.00)', # Spoofing the mobile app
+                'Accept': '*/*',
+            })
+            
+            time.sleep(random.uniform(10, 15)) # Longer, irregular sleep
+            
+            response = session.get(url, timeout=25)
             
             if response.status_code == 403:
                 print(f"⛔ 403 Forbidden for r/{sub}. GitHub IP might be temporarily flagged.")
