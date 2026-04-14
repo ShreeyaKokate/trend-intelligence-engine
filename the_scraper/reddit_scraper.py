@@ -1,4 +1,5 @@
 import feedparser
+import requests
 import sqlite3
 import os
 import time
@@ -65,55 +66,72 @@ def scrape_reddit():
 
     conn = init_db()
     cursor = conn.cursor()
+
+    # Standard Browser Header to bypass GitHub Action IP blocks
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+    }
     
     for sub in SUBREDDITS:
         # Fetching Top 100 of the day for max volume/quality
-        rss_url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
+        url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"        
         
-        # User-Agent is strictly required to avoid 429 "Too Many Requests"
-        feed = feedparser.parse(rss_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        
-        raw_count_in_bucket = len(feed.entries)
-        unique_count_in_bucket = 0
-        
-        for entry in feed.entries:
-            # Unique ID
-            post_id = entry.id.split('_')[-1] if '_' in entry.id else entry.id
+        try:
+            # TRIGGER CHANGE: Using requests.get instead of feedparser.parse
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                print(f"⚠️ Failed r/{sub} (Status: {response.status_code})")
+                continue
             
-            # Extract domain of the url
-            link = entry.link
-            domain = link.split('//')[-1].split('/')[0] if '//' in link else "reddit.com"
-
-            # Comment Count (Uses the slash:comments XML tag)
-            comments = int(entry.get('slash_comments', 0))
-
-            # Flair Extraction
-            flair = "None"
-            if 'tags' in entry and len(entry.tags) > 0:
-                flair = entry.tags[0].term
-
-            # Determine if it's a Text Post or a Link
-            is_self = 1 if "/comments/" in link and domain == "www.reddit.com" else 0
-
-            cursor.execute('''
-                INSERT OR IGNORE INTO reddit_posts 
-                (id, subreddit, author, title, url, domain, comment_count, flair, published_at, summary_html, is_self_post)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                post_id, f"r/{sub}", entry.author if 'author' in entry else 'unknown',
-                entry.title, link, domain, comments, flair, entry.published, entry.summary, is_self
-            ))
+            data = response.json()
+            posts = data.get('data', {}).get('children', [])
             
-            if cursor.rowcount > 0:
-                unique_count_in_bucket += 1
-        
-        # Output Format
-        print(f"📊 r/{sub} Stats: {raw_count_in_bucket} found | {unique_count_in_bucket} new unique added")
+            raw_count_in_bucket = len(posts)
+            unique_count_in_bucket = 0
 
-        total_raw_scraped_this_run += raw_count_in_bucket
-        total_unique_new_this_run += unique_count_in_bucket
+            for post in posts:
+                # Map JSON fields back to your existing extraction variables
+                entry = post.get('data', {})
+                post_id = entry.get('id')
+                link = entry.get('url')
+                domain = entry.get('domain', 'reddit.com')
+                
+                # Maintain original logic for self-posts
+                is_self = 1 if entry.get('is_self') else 0
+
+                cursor.execute('''
+                    INSERT OR IGNORE INTO reddit_posts 
+                    (id, subreddit, author, title, url, domain, comment_count, flair, published_at, summary_html, is_self_post)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    post_id, 
+                    f"r/{sub}", 
+                    entry.get('author', 'unknown'),
+                    entry.get('title'), 
+                    link, 
+                    domain, 
+                    entry.get('num_comments', 0), 
+                    entry.get('link_flair_text', 'None'), 
+                    datetime.fromtimestamp(entry.get('created_utc')).isoformat(), 
+                    entry.get('selftext_html', ''), 
+                    is_self
+                ))
+                
+                if cursor.rowcount > 0:
+                    unique_count_in_bucket += 1
+            
+            # Output Format
+            print(f"📊 r/{sub} Stats: {raw_count_in_bucket} found | {unique_count_in_bucket} new unique added")
+
+            total_raw_scraped_this_run += raw_count_in_bucket
+            total_unique_new_this_run += unique_count_in_bucket
+
+        except Exception as e:
+            print(f"❌ Error in bucket {sub}: {e}")
+
         time.sleep(5) # Prevent IP throttling
-    
+
+
     # Get total count in DB till date
     cursor.execute("SELECT COUNT(*) FROM reddit_posts")
     total_db_count = cursor.fetchone()[0]
