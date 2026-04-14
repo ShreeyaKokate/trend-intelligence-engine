@@ -67,20 +67,34 @@ def scrape_reddit():
     conn = init_db()
     cursor = conn.cursor()
 
-    # Standard Browser Header to bypass GitHub Action IP blocks
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
-    }
+    session = requests.Session()
+    # 2026 SEC-FETCH STRATEGY: These headers are the "secret sauce" to bypass 403s
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://www.reddit.com/',
+        'Origin': 'https://www.reddit.com',
+        'DNT': '1',
+        # These 3 headers are CRITICAL for 2026 bypass
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin',
+    })
     
     for sub in SUBREDDITS:
         # Fetching Top 100 of the day for max volume/quality
-        url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"        
-        
+        url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
+
         try:
-            # TRIGGER CHANGE: Using requests.get instead of feedparser.parse
-            response = requests.get(url, headers=headers, timeout=15)
-            if response.status_code != 200:
-                print(f"⚠️ Failed r/{sub} (Status: {response.status_code})")
+            # Add a small random jitter to the sleep to break the "machine" pattern
+            import random
+            time.sleep(random.uniform(5, 10)) 
+            
+            response = session.get(url, timeout=20)
+            
+            if response.status_code == 403:
+                print(f"⛔ 403 Forbidden for r/{sub}. GitHub IP might be temporarily flagged.")
                 continue
             
             data = response.json()
