@@ -1,29 +1,29 @@
-name: Intelligence Pipeline
+name: AI Trend Intelligence Pipeline
 
 on:
-  repository_dispatch:
-    types: [new_data_available]
-  workflow_dispatch: # This adds a manual "Run" button in the GitHub UI
+  schedule:
+    - cron: '0 0 * * *'  # Runs every midnight
+  workflow_dispatch:      # Allows you to trigger it manually for testing
 
 jobs:
-  build:
+  run-full-pipeline:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Public Code
+      - name: Checkout Public Logic
         uses: actions/checkout@v4
 
-      - name: Checkout Private Data
+      - name: Pull Private Data Vault
         uses: actions/checkout@v4
         with:
-          repository: shreeyakokate/ai-flywheel # Updated with your username
+          repository: shreeyakokate/ai-flywheel
           token: ${{ secrets.DATA_PULL_TOKEN }}
-          path: raw_data 
+          path: data_vault  # This clones your private repo into this folder
 
       - name: Setup Conda
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: ai_trend
-          python-version: "3.10" # Matches your local setup
+          python-version: "3.10"
           auto-update-conda: true
 
       - name: Install Dependencies
@@ -31,8 +31,40 @@ jobs:
         run: |
           conda activate ai_trend
           pip install -r requirements.txt
-          
-      - name: Run Preprocessing
+
+      - name: Step 1: Run Scrapers
+        env:
+          NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
+          TWITTER_AUTH_TOKEN: ${{ secrets.TWITTER_AUTH_TOKEN }}
+          TWITTER_CT0: ${{ secrets.TWITTER_CT0 }}
+          TWITTER_USERNAME: ${{ secrets.TWITTER_USERNAME }}
+          BSKY_HANDLE: ${{ secrets.BSKY_HANDLE }}
+          BSKY_APP_PASSWORD: ${{ secrets.BSKY_APP_PASSWORD }}
         shell: bash -l {0}
-        # Pointing to 'the_refiner' folder and 'raw_data/database'
-        run: python the_refiner/data_preprocess.py --input raw_data/database/
+        run: |
+          conda activate ai_trend
+          # Point scrapers to the raw_data folder inside the cloned vault
+          python the_scraper/news_scraper.py --output data_vault/database/raw_data/
+          python the_scraper/twitter_scraper.py --output data_vault/database/raw_data/
+          python the_scraper/reddit_scraper.py --output data_vault/database/raw_data/
+          python the_scraper/bluesky_scraper.py --output data_vault/database/raw_data/
+
+      - name: Step 2: Run Preprocessing
+        shell: bash -l {0}
+        run: |
+          conda activate ai_trend
+          # Preprocess from raw_data and save to refined_data
+          python the_refiner/data_preprocess.py --input data_vault/database/raw_data/ --output data_vault/database/refined_data/
+
+      - name: Step 3: Push Updated Vault back to Private Repo
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.DATA_PULL_TOKEN }}
+        with:
+          source-directory: 'data_vault/database'
+          destination-github-username: 'shreeyakokate'
+          destination-repository-name: 'ai-flywheel'
+          target-directory: 'database'
+          target-branch: main
+          user-email: github-actions[bot]@users.noreply.github.com
+          commit-message: "Daily Trend Data Update: Scraped, Growing DBs and Refined"
