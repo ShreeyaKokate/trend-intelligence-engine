@@ -1,0 +1,11 @@
+python-dotenv
+newsapi-python
+pandas
+sqlalchemy
+gspread
+google-auth
+datetime
+Scweet
+playwright
+feedparser
+requests
