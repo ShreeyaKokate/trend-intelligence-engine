@@ -6,6 +6,7 @@ import time
 import re
 from datetime import datetime, timedelta
 import argparse  
+import random
 
 # Setup Arguments to listen to the GitHub Action
 parser = argparse.ArgumentParser()
@@ -15,7 +16,7 @@ args, unknown = parser.parse_known_args()
 # Targeted high-signal AI subreddits
 SUBREDDITS = [
     "artificial", "MachineLearning", 
-    "AI_Agents", "ArtificialInteligence",
+    "AI_Agents", "ArtificialIntelligence",
     "LocalLlama", "singularity",
     "OpenAI", "ChatGPT", "ClaudeAI", "computervision", 
     "dataisbeautiful", "VibeCoding", "ClaudeCode", "PromptEngineering",
@@ -83,17 +84,19 @@ def scrape_reddit():
     })
     
     for sub in SUBREDDITS:
-        # We target the most recent archive of the daily top posts
-        url = f"https://web.archive.org/web/20260414/https://www.reddit.com/r/{sub}/top/.json?t=day"
+        url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
         
         try:
-            # Wayback doesn't block GitHub IPs!
-            response = session.get(url, timeout=30)
+            # INCREASED JITTER: 15-25 seconds is the sweet spot for GHA in 2026
+            time.sleep(random.uniform(15, 25)) 
             
-            if response.status_code == 403:
-                print(f"⛔ 403 Forbidden for r/{sub}. GitHub IP might be temporarily flagged.")
+            response = session.get(url, timeout=25)
+            
+            # CHECK FOR EMPTY BODY: Prevents the "char 0" error
+            if not response.text or response.status_code != 200:
+                print(f"⚠️ Empty or Error response for r/{sub} (Status: {response.status_code})")
                 continue
-            
+
             data = response.json()
             posts = data.get('data', {}).get('children', [])
             
@@ -137,8 +140,11 @@ def scrape_reddit():
             total_raw_scraped_this_run += raw_count_in_bucket
             total_unique_new_this_run += unique_count_in_bucket
 
+        except ValueError: # This specifically catches the 'char 0' JSON error
+            print(f"❌ Empty JSON received for r/{sub} - skipping.")
+            continue
         except Exception as e:
-            print(f"❌ Error in bucket {sub}: {e}")
+            print(f"❌ Unexpected Error in bucket {sub}: {e}")
 
         time.sleep(5) # Prevent IP throttling
 
