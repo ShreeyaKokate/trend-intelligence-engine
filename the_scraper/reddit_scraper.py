@@ -68,11 +68,11 @@ def scrape_reddit():
     
     for sub in SUBREDDITS:
         # Fetching Top 100 of the day for max volume/quality
-        rss_url = f"https://www.reddit.com/r/{sub}/top/.rss?t=day&limit=100"
+        rss_url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
         
         # User-Agent is strictly required to avoid 429 "Too Many Requests"
-        feed = feedparser.parse(rss_url, agent='AI_Trend_Flywheel')
-
+        feed = feedparser.parse(rss_url, agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        
         raw_count_in_bucket = len(feed.entries)
         unique_count_in_bucket = 0
         
@@ -112,7 +112,7 @@ def scrape_reddit():
 
         total_raw_scraped_this_run += raw_count_in_bucket
         total_unique_new_this_run += unique_count_in_bucket
-        time.sleep(2) # Prevent IP throttling
+        time.sleep(5) # Prevent IP throttling
     
     # Get total count in DB till date
     cursor.execute("SELECT COUNT(*) FROM reddit_posts")
