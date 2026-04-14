@@ -1,7 +1,9 @@
 name: Intelligence Pipeline
+
 on:
   repository_dispatch:
     types: [new_data_available]
+  workflow_dispatch: # This adds a manual "Run" button in the GitHub UI
 
 jobs:
   build:
@@ -21,8 +23,15 @@ jobs:
         uses: conda-incubator/setup-miniconda@v3
         with:
           activate-environment: ai_trend
-          environment-file: environment.yml
+          python-version: "3.10" # Matches your local setup
+          auto-update-conda: true
 
+      - name: Install Dependencies
+        shell: bash -l {0}
+        run: |
+          conda activate ai_trend
+          pip install -r requirements.txt
+          
       - name: Run Preprocessing
         shell: bash -l {0}
         # Pointing to 'the_refiner' folder and 'raw_data/database'
