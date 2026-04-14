@@ -87,19 +87,29 @@ def scrape_reddit():
         url = f"https://www.reddit.com/r/{sub}/top/.json?t=day&limit=100"
         
         try:
-            # INCREASED JITTER: 15-25 seconds is the sweet spot for GHA in 2026
+            # Random jitter to look human (12-20 seconds is best for GHA)
+            import random
             time.sleep(random.uniform(15, 25)) 
             
             response = session.get(url, timeout=25)
             
-            # CHECK FOR EMPTY BODY: Prevents the "char 0" error
-            if not response.text or response.status_code != 200:
-                print(f"⚠️ Empty or Error response for r/{sub} (Status: {response.status_code})")
+            # THE FIX: Check if the response is empty BEFORE trying to parse JSON
+            if not response.text.strip():
+                print(f"⚠️ Empty response for r/{sub} (Status: {response.status_code}) - Skipping")
+                continue
+
+            if response.status_code != 200:
+                print(f"⚠️ Failed r/{sub} (Status: {response.status_code})")
                 continue
 
             data = response.json()
             posts = data.get('data', {}).get('children', [])
             
+            # Check if the JSON structure is actually there
+            if 'data' not in data or 'children' not in data['data']:
+                print(f"⚠️ Unexpected JSON structure for r/{sub}")
+                continue
+
             raw_count_in_bucket = len(posts)
             unique_count_in_bucket = 0
 
@@ -140,12 +150,10 @@ def scrape_reddit():
             total_raw_scraped_this_run += raw_count_in_bucket
             total_unique_new_this_run += unique_count_in_bucket
 
-        except ValueError: # This specifically catches the 'char 0' JSON error
-            print(f"❌ Empty JSON received for r/{sub} - skipping.")
-            continue
         except Exception as e:
-            print(f"❌ Unexpected Error in bucket {sub}: {e}")
-
+            # This will now catch and report errors without crashing the whole script
+            print(f"❌ Error in bucket {sub}: {e}")
+            
         time.sleep(5) # Prevent IP throttling
 
 
